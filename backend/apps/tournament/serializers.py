@@ -9,8 +9,9 @@ class TournamentSerializer(serializers.ModelSerializer):
         fields = (
             "id", "name", "overs", "total_teams", "players_per_team",
             "pool_count", "status", "created_by", "created_at", "updated_at",
+            "mot_player",
         )
-        read_only_fields = ("id", "status", "created_by", "created_at", "updated_at")
+        read_only_fields = ("id", "status", "created_by", "created_at", "updated_at", "mot_player")
 
     def validate_total_teams(self, value):
         if value < 4 or value % 2 != 0:

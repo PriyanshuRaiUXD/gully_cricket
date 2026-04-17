@@ -16,4 +16,9 @@ urlpatterns = [
         views.StandingsView.as_view(),
         name="standings",
     ),
+    path(
+        "<uuid:tournament_id>/mot/",
+        views.MOTCalculationView.as_view(),
+        name="mot",
+    ),
 ]

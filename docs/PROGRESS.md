@@ -75,30 +75,30 @@
 ## Pending Phases
 
 ### Phase 5b: Points Table & Rankings
-- [ ] NRR calculation logic
-- [ ] Points table API per pool
-- [ ] Standings endpoint
-- [ ] Scoreboard UI page
+- [x] NRR calculation logic
+- [x] Points table API per pool
+- [x] Standings endpoint
+- [x] Scoreboard UI page
 
 ### Phase 6: Knockouts & Super Over
-- [ ] Pool → knockout transition
-- [ ] Knockout bracket generation
-- [ ] Super over model + API
-- [ ] Bracket UI
+- [x] Pool → knockout transition
+- [x] Knockout bracket generation
+- [x] Super over model + API
+- [x] Bracket UI
 
 ### Phase 7: Awards
-- [ ] MOM auto-calculation
-- [ ] MOM override API
-- [ ] MOT calculation
+- [x] MOM auto-calculation
+- [x] MOM override API
+- [x] MOT calculation
 
 ### Phase 8: Frontend Pages (remaining)
-- [ ] Tournament create form
-- [ ] Tournament detail page
-- [ ] Team/player management UI
-- [ ] Match list page
-- [ ] Live scoring page (ball input panel)
-- [ ] Scorecard display page
-- [ ] Export & cleanup page
+- [x] Tournament create form
+- [x] Tournament detail page
+- [x] Team/player management UI
+- [x] Match list page
+- [x] Live scoring page (ball input panel)
+- [x] Scorecard display page
+- [x] Export & cleanup page
 
 ### Phase 9: Testing & Polish
 - [ ] Backend unit tests (scoring, NRR, results)

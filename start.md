@@ -7,6 +7,7 @@
 A full-stack web app to:
 
 - Create and manage **gully cricket tournaments** (street-level, informal cricket)
+- **Public-first Spectator Mode**: Anyone can view live matches, dynamic scorecards, and tournament brackets without logging in.
 - Register teams, assign players, distribute pools, and auto-generate fixtures
 - Run matches with **ball-by-ball scoring** (including extras, wickets, strike rotation)
 - Conduct **toss** before each match
@@ -27,6 +28,7 @@ A full-stack web app to:
 | Framework          | React 18+ with TypeScript     |
 | State Management   | Zustand (lightweight, simple) |
 | UI Library         | Tailwind CSS + shadcn/ui      |
+| Animations         | Framer Motion (Cinematic UI)  |
 | HTTP Client        | Axios                         |
 | Routing            | React Router v6               |
 | Form Handling      | React Hook Form + Zod         |
@@ -74,12 +76,16 @@ root/
 │   │   │   ├── tournament/    # Create, list, detail views
 │   │   │   └── team/          # Team cards, player lists
 │   │   ├── pages/             # Route-level page components
-│   │   │   ├── Home.tsx
-│   │   │   ├── Login.tsx
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── TournamentDetail.tsx
-│   │   │   ├── MatchLive.tsx
-│   │   │   └── Scoreboard.tsx
+│   │   │   ├── public/        # Spectator Views (No Auth)
+│   │   │   │   ├── Home.tsx             # Cinematic landing & live matches
+│   │   │   │   ├── PublicTournament.tsx # Standings & Brackets
+│   │   │   │   └── MatchCenter.tsx      # Premium Live Scorecard & Feed
+│   │   │   └── admin/         # Organizer Views (Auth Required)
+│   │   │       ├── Auth/
+│   │   │       ├── Dashboard.tsx
+│   │   │       ├── ManageTournament.tsx
+│   │   │       ├── MatchScoring.tsx     # Ball-by-ball input
+│   │   │       └── Toss.tsx
 │   │   ├── store/             # Zustand stores
 │   │   ├── services/          # API call wrappers (Axios)
 │   │   ├── hooks/             # Custom React hooks

@@ -1,6 +1,7 @@
 """Core ball-by-ball scoring engine."""
 
 from decimal import Decimal
+from django.db.models import Sum
 
 from apps.matches.models import Innings, Match
 
@@ -26,6 +27,37 @@ def is_last_ball_noball(innings):
     """Check if the previous ball was a no-ball (for free hit)."""
     last = Ball.objects.filter(innings=innings).order_by("-timestamp").first()
     return last.is_noball if last else False
+
+
+def recalculate_innings_totals(innings):
+    """Deep recalculation of innings totals from balls."""
+    stats = Ball.objects.filter(innings=innings).aggregate(
+        total_runs=Sum("total_runs"),
+        total_wickets=Sum("is_wicket"),
+    )
+    
+    # Calculate extras (Wide=1, NoBall=1, plus extra_runs)
+    balls = Ball.objects.filter(innings=innings)
+    extras_total = 0
+    legal_count = 0
+    for b in balls:
+        if b.is_wide or b.is_noball:
+            extras_total += 1
+        extras_total += b.extra_runs
+        if not b.is_wide and not b.is_noball:
+            legal_count += 1
+            
+    innings.total_runs = stats["total_runs"] or 0
+    innings.total_wickets = stats["total_wickets"] or 0
+    innings.extras = extras_total
+    
+    full_overs = legal_count // 6
+    remaining = legal_count % 6
+    innings.total_overs = Decimal(f"{full_overs}.{remaining}")
+    
+    # Reset completion if we reverted
+    innings.is_completed = False
+    innings.save()
 
 
 def record_ball(innings, data):
@@ -57,9 +89,6 @@ def record_ball(innings, data):
         data["wicket_type"] = None
         data["dismissed_player_id"] = None
         data["fielder_id"] = None
-
-    # For illegal deliveries, don't advance ball_number
-    actual_ball_number = ball_number if is_legal else ball_number
 
     ball = Ball.objects.create(
         innings=innings,
@@ -113,8 +142,6 @@ def record_ball(innings, data):
 
     # Check innings completion
     max_wickets = tournament.players_per_team - 1
-    _, next_ball = get_current_over_and_ball(innings)
-
     over_check, _ = get_current_over_and_ball(innings)
     all_overs_done = over_check >= tournament.overs
     all_out = innings.total_wickets >= max_wickets
@@ -168,35 +195,13 @@ def undo_last_ball(innings):
     if not last_ball:
         return None
 
-    # Reverse the totals
-    innings.total_runs -= last_ball.total_runs
-    is_penalty = 1 if (last_ball.is_wide or last_ball.is_noball) else 0
-    innings.extras -= is_penalty + last_ball.extra_runs
-    if last_ball.is_wicket:
-        innings.total_wickets -= 1
-    innings.is_completed = False
-
-    ball_data = BallSerializer_lite(last_ball)
-    last_ball.delete()
-
-    # Recalculate overs
-    legal_count = Ball.objects.filter(
-        innings=innings, is_wide=False, is_noball=False
-    ).count()
-    full_overs = legal_count // 6
-    remaining = legal_count % 6
-    innings.total_overs = Decimal(f"{full_overs}.{remaining}")
-    innings.save()
-
-    return ball_data
-
-
-def BallSerializer_lite(ball):
-    """Minimal dict representation for undo response."""
-    return {
-        "id": str(ball.id),
-        "over_number": ball.over_number,
-        "ball_number": ball.ball_number,
-        "total_runs": ball.total_runs,
-        "is_wicket": ball.is_wicket,
+    ball_data = {
+        "id": str(last_ball.id),
+        "over_number": last_ball.over_number,
+        "ball_number": last_ball.ball_number,
+        "total_runs": last_ball.total_runs,
+        "is_wicket": last_ball.is_wicket,
     }
+    last_ball.delete()
+    recalculate_innings_totals(innings)
+    return ball_data

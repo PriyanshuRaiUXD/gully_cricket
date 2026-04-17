@@ -1,6 +1,6 @@
 # 🏏 Gully Cricket Tournament App
 
-A full-stack web app for organizing and scoring gully cricket tournaments with ball-by-ball live scoring, NRR-based rankings, and Excel export.
+A full-stack web app featuring a **Cinematic Spectator Mode** for viewing live gully cricket tournaments. Includes ball-by-ball live scoring, dynamic scorecards, NRR-based rankings, and comprehensive organizer tools.
 
 ## Quick Start (Local Development — no Docker)
 
@@ -78,7 +78,15 @@ Browser → Nginx (:80)
 │       └── export/         # Excel export (openpyxl)
 ├── frontend/               # React + TypeScript + Vite
 │   └── src/
-│       ├── pages/          # Home, Login, Register, Dashboard
+│       ├── pages/          # Route-level page components
+│       │   ├── public/     # Spectator Views (No Auth, Cinematic UI)
+│       │   │   ├── Home.tsx
+│       │   │   ├── PublicTournament.tsx
+│       │   │   └── MatchCenter.tsx
+│       │   └── admin/      # Organizer Views (Auth Required)
+│       │       ├── Dashboard.tsx
+│       │       ├── ManageTournament.tsx
+│       │       └── MatchScoring.tsx
 │       ├── store/          # Zustand auth store
 │       ├── services/       # Axios API client
 │       └── types/          # TypeScript interfaces

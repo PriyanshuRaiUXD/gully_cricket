@@ -15,6 +15,7 @@ export interface Tournament {
   players_per_team: number;
   pool_count: number;
   status: "SETUP" | "POOL_STAGE" | "KNOCKOUTS" | "COMPLETED";
+  mot_player: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -44,6 +45,16 @@ export interface Player {
   created_at: string;
 }
 
+export interface SuperOver {
+  id: string;
+  match: string;
+  round: number;
+  team1_runs: number;
+  team2_runs: number;
+  winner: string | null;
+  created_at: string;
+}
+
 export interface Match {
   id: string;
   tournament: string;
@@ -66,6 +77,7 @@ export interface Match {
   mom_player: string | null;
   result_summary: string;
   innings: Innings[];
+  super_overs?: SuperOver[];
   created_at: string;
   updated_at: string;
 }

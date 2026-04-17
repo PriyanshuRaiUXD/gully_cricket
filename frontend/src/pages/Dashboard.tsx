@@ -1,204 +1,551 @@
-import { useEffect, useState } from "react";
-import { useAuthStore } from "../store/authStore";
-import { useNavigate } from "react-router-dom";
-import api from "../services/api";
-import type { Tournament } from "../types";
+import { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import api from '../services/api'
+import type { Tournament } from '../types'
+import { Navbar } from '../components/layout/Navbar'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Modal } from '../components/ui/Modal'
+import { PageLoader } from '../components/ui/Spinner'
+import { 
+  Trophy, Plus, Users, Clock, CheckCircle2, Activity, 
+  PlayCircle, BarChart3, Calendar, Shield, ArrowRight, 
+  Filter, Sparkles, Zap, Target, Layers, Settings2, Edit3
+} from 'lucide-react'
+import toast from 'react-hot-toast'
 
-const INITIAL_FORM = { name: "", overs: 6, total_teams: 4, players_per_team: 11, pool_count: 1 };
+const STATUS_SORT: Record<string, number> = { SETUP: 0, POOL_STAGE: 1, KNOCKOUTS: 2, COMPLETED: 3 }
 
 export default function Dashboard() {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(INITIAL_FORM);
-  const [creating, setCreating] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const logout = useAuthStore((s) => s.logout);
-  const navigate = useNavigate();
+  const [tournaments, setTournaments] = useState<Tournament[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL')
+  const navigate = useNavigate()
+
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({
+    name: '', overs: 6, total_teams: 8, players_per_team: 11, pool_count: 2,
+  })
 
   useEffect(() => {
-    api
-      .get("/tournaments/")
-      .then((res) => setTournaments(res.data.results || res.data))
-      .catch(() => setTournaments([]))
-      .finally(() => setLoading(false));
-  }, []);
+    fetchTournaments()
+  }, [])
 
-  function handleField(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: name === "name" ? value : Number(value) }));
+  function fetchTournaments() {
+    api.get('/tournaments/')
+      .then((res) => setTournaments(res.data.results || res.data))
+      .catch(() => toast.error('Failed to load tournaments'))
+      .finally(() => setLoading(false))
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
-    setFormError(null);
+  function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value } = e.target
+    setForm((f) => ({ ...f, [name]: name === 'name' ? value : Number(value) }))
+  }
+
+  function openCreate() {
+    setIsEditing(false)
+    setEditingId(null)
+    setForm({ name: '', overs: 6, total_teams: 8, players_per_team: 11, pool_count: 2 })
+    setStep(1)
+    setShowModal(true)
+  }
+
+  function openEdit(e: React.MouseEvent, t: Tournament) {
+    e.stopPropagation()
+    if (t.status === 'COMPLETED' || t.status === 'KNOCKOUTS') {
+      toast.error('Only active tournaments can be modified.')
+      return
+    }
+    setIsEditing(true)
+    setEditingId(t.id)
+    setForm({ 
+      name: t.name, 
+      overs: t.overs, 
+      total_teams: t.total_teams, 
+      players_per_team: t.players_per_team, 
+      pool_count: t.pool_count 
+    })
+    setStep(1)
+    setShowModal(true)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
     try {
-      const res = await api.post("/tournaments/", form);
-      setTournaments((prev) => [res.data, ...prev]);
-      setShowModal(false);
-      setForm(INITIAL_FORM);
-    } catch (err: any) {
-      const data = err.response?.data;
-      if (data) {
-        const msgs = Object.values(data).flat().join(" ");
-        setFormError(msgs);
+      if (isEditing && editingId) {
+        await api.patch(`/tournaments/${editingId}/`, form)
+        toast.success('Protocol updated successfully')
+        fetchTournaments()
       } else {
-        setFormError("Failed to create tournament.");
+        const res = await api.post('/tournaments/', form)
+        toast.success(`"${res.data.name}" successfully deployed!`)
+        navigate(`/tournaments/${res.data.id}`)
+      }
+      setShowModal(false)
+    } catch (err: any) {
+      console.error('CRITICAL DEPLOYMENT FAILURE:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        config: err.config
+      })
+      const errorData = err.response?.data
+      if (errorData && typeof errorData === 'object') {
+        const messages = Object.entries(errorData)
+          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+          .join('\n')
+        toast.error(messages || 'Validation failed')
+      } else if (err.response?.status === 500) {
+        toast.error('Server Crash (500). Please check backend logs.')
+      } else if (err.message === 'Network Error') {
+        toast.error('Network Error: Is the backend running?')
+      } else {
+        toast.error(`Operation Failed: ${err.message || 'Unknown error'}`)
       }
     } finally {
-      setCreating(false);
+      setSubmitting(false)
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-green-700 text-white px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">🏏 Gully Cricket</h1>
-        <button
-          onClick={() => {
-            logout();
-            navigate("/");
-          }}
-          className="text-sm bg-green-800 px-4 py-2 rounded hover:bg-green-900 transition"
-        >
-          Logout
-        </button>
-      </nav>
+  const active = tournaments.filter((t) => t.status !== 'COMPLETED').length
+  const completed = tournaments.filter((t) => t.status === 'COMPLETED').length
+  const totalTeams = tournaments.reduce((acc, t) => acc + t.total_teams, 0)
+  
+  const recentTournament = tournaments.length > 0 
+    ? [...tournaments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] 
+    : null;
 
-      <main className="max-w-4xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">My Tournaments</h2>
-          <button
-            onClick={() => { setFormError(null); setShowModal(true); }}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-          >
-            + New Tournament
-          </button>
+  const filteredTournaments = useMemo(() => {
+    let filtered = tournaments
+    if (filter === 'ACTIVE') filtered = tournaments.filter(t => t.status !== 'COMPLETED')
+    if (filter === 'COMPLETED') filtered = tournaments.filter(t => t.status === 'COMPLETED')
+    return filtered.sort((a, b) => (STATUS_SORT[a.status] ?? 9) - (STATUS_SORT[b.status] ?? 9))
+  }, [tournaments, filter])
+
+  if (loading) return <PageLoader />
+
+  return (
+    <div className="min-h-screen bg-ink-950 text-white selection:bg-neon-cyan/30 flex flex-col relative overflow-hidden">
+      <Navbar
+        breadcrumbs={[{ label: 'Control Center' }]}
+        actions={
+          <Button size="sm" onClick={openCreate} className="gap-1.5 shadow-glow-cyan bg-neon-cyan text-ink-950 hover:bg-cyan-400">
+            <Plus className="w-4 h-4" /> New Event
+          </Button>
+        }
+      />
+
+      <div className="absolute top-0 inset-x-0 h-[50vh] bg-gradient-to-b from-neon-cyan/5 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 mesh-hero opacity-20 pointer-events-none mix-blend-screen" />
+      
+      <main className="relative flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 z-10">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] text-neon-cyan font-bold uppercase tracking-widest mb-4">
+              <Shield className="w-3.5 h-3.5" />
+              Verified Organizer Environment
+            </div>
+            <h1 className="text-4xl md:text-5xl font-black font-display tracking-tight text-white mb-3">
+              Event <span className="text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-white to-neon-violet">Operations</span>
+            </h1>
+            <p className="text-ink-400 max-w-xl text-sm md:text-base leading-relaxed font-medium">
+              Your command hub for high-stakes cricket. Orchestrate tournaments, automate standings, and broadcast live scores to your audience.
+            </p>
+          </div>
+          
+          {recentTournament && recentTournament.status !== 'COMPLETED' && (
+             <div className="glass group p-1 rounded-2xl border border-neon-cyan/20 bg-neon-cyan/5 shadow-glow-cyan/5 hidden lg:block max-w-xs animate-float">
+                <div className="px-5 py-4 flex flex-col gap-2">
+                   <div className="text-[10px] uppercase font-bold text-neon-cyan tracking-[.2em] flex items-center gap-1.5">
+                     <Activity className="w-3 h-3 animate-pulse" /> Mission Active
+                   </div>
+                   <div className="font-display font-bold text-white truncate text-sm">{recentTournament.name}</div>
+                   <Button size="sm" onClick={() => navigate(`/tournaments/${recentTournament.id}`)} variant="outline" className="w-full text-[11px] h-8 mt-2 gap-1.5 bg-white/5 border-white/10 hover:border-neon-cyan/50 hover:bg-neon-cyan/10 text-white transition-all">
+                     Continue Directing <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                   </Button>
+                </div>
+             </div>
+          )}
         </div>
 
-        {loading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : tournaments.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <p className="text-lg">No tournaments yet.</p>
-            <p className="text-sm">Create one to get started!</p>
+        {/* Analytics Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+          {[
+            { label: 'Managed Events', value: tournaments.length, icon: <Trophy className="w-5 h-5 text-ink-400" />, color: 'from-white/5 to-white/0', border: 'hover:border-white/20' },
+            { label: 'Active Now', value: active, icon: <Activity className="w-5 h-5 text-neon-cyan" />, color: 'from-neon-cyan/10 to-transparent', border: 'hover:border-neon-cyan/30' },
+            { label: 'Enrolled Teams', value: totalTeams, icon: <Users className="w-5 h-5 text-neon-violet" />, color: 'from-neon-violet/10 to-transparent', border: 'hover:border-neon-violet/30' },
+            { label: 'Finalized', value: completed, icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />, color: 'from-emerald-500/10 to-transparent', border: 'hover:border-emerald-500/30' },
+          ].map((s) => (
+            <div key={s.label} className={`relative glass rounded-2xl p-5 md:p-6 border border-white/[.04] shadow-panel overflow-hidden group transition-all duration-300 bg-gradient-to-br ${s.color} ${s.border}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-10 h-10 rounded-xl bg-ink-900 border border-white/5 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  {s.icon}
+                </div>
+              </div>
+              <div>
+                <div className="text-3xl md:text-4xl font-black font-display tracking-tight text-white mb-1">{s.value}</div>
+                <div className="text-[10px] text-ink-500 uppercase tracking-[.15em] font-bold">{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* View Control */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-6 mb-8 border-b border-white/5 pb-8">
+           <div className="flex bg-ink-900/50 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md w-full sm:w-auto">
+             {(['ALL', 'ACTIVE', 'COMPLETED'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black tracking-[.2em] uppercase transition-all ${
+                    filter === f 
+                      ? 'bg-white/10 text-neon-cyan shadow-glow-cyan/10' 
+                      : 'text-ink-500 hover:text-ink-300'
+                  }`}
+                >
+                  {f}
+                </button>
+             ))}
+           </div>
+           
+           <div className="text-[11px] font-medium text-ink-500 flex items-center gap-2">
+             <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
+             Synchronized with live database
+           </div>
+        </div>
+
+        {/* Content */}
+        {tournaments.length === 0 ? (
+          <div className="relative overflow-hidden glass rounded-[3rem] border border-white/[.06] p-12 md:p-24 text-center shadow-panel animate-rise mt-8">
+            <div className="absolute inset-0 bg-grid-dark bg-grid-24 opacity-10" />
+            <div className="relative z-10 max-w-md mx-auto">
+              <div className="inline-flex w-24 h-24 rounded-3xl bg-gradient-to-br from-neon-cyan/20 to-neon-violet/20 items-center justify-center border border-white/10 mb-10 shadow-glow-cyan/20 rotate-3">
+                <Trophy className="w-12 h-12 text-neon-cyan" strokeWidth={1.2} />
+              </div>
+              <h3 className="text-3xl font-display font-black text-white tracking-tight mb-4">No Operations Running</h3>
+              <p className="text-ink-400 text-sm md:text-base mb-10 leading-relaxed font-medium">
+                Your command center is idle. Deploy your first tournament to start managing teams, matches, and real-time statistics.
+              </p>
+              <Button onClick={openCreate} size="lg" className="w-full sm:w-auto px-10 h-14 rounded-2xl bg-neon-cyan text-ink-950 hover:bg-cyan-400 shadow-glow-cyan font-black uppercase tracking-widest text-xs">
+                <Zap className="w-5 h-5 mr-2 fill-current" /> Deploy First Event
+              </Button>
+            </div>
           </div>
+        ) : filteredTournaments.length === 0 ? (
+           <div className="py-24 text-center glass rounded-3xl border border-white/5 border-dashed">
+              <Filter className="w-12 h-12 text-ink-700 mx-auto mb-4" />
+              <p className="text-ink-500 font-bold uppercase tracking-widest text-xs">No records found for this filter</p>
+           </div>
         ) : (
-          <div className="grid gap-4">
-            {tournaments.map((t) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredTournaments.map((t) => (
               <div
                 key={t.id}
                 onClick={() => navigate(`/tournaments/${t.id}`)}
-                className="bg-white p-4 rounded-lg shadow-sm border flex justify-between items-center cursor-pointer hover:shadow-md transition"
+                className="group relative flex flex-col glass rounded-3xl border border-white/[.06] p-7 text-left hover:border-neon-cyan/30 hover:bg-white/[.02] transition-all duration-500 overflow-hidden shadow-panel hover:shadow-panel-hover cursor-pointer"
               >
-                <div>
-                  <h3 className="font-semibold text-lg">{t.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {t.total_teams} teams · {t.overs} overs · {t.pool_count}{" "}
-                    pool(s) · Status: {t.status}
-                  </p>
+                <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                
+                <div className="relative flex justify-between items-start mb-6 z-20">
+                  <Badge status={t.status} />
+                  <div className="flex gap-2 relative">
+                    <div 
+                      onClick={(e) => openEdit(e, t)}
+                      className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-neon-cyan hover:text-ink-950 hover:border-neon-cyan transition-all cursor-pointer shadow-lg z-30"
+                      title="Edit Protocol"
+                    >
+                        <Edit3 className="w-5 h-5" />
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-ink-500 group-hover:text-neon-cyan group-hover:border-neon-cyan/30 transition-all shadow-lg">
+                       <ArrowRight className="w-5 h-5 -rotate-45 group-hover:rotate-0 transition-transform duration-300" />
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium">
-                  {t.status}
-                </span>
+
+                <h3 className="relative font-display font-black text-xl text-white group-hover:text-neon-cyan transition-colors leading-tight line-clamp-2 mb-3">
+                  {t.name}
+                </h3>
+                
+                <div className="flex items-center gap-3 text-[10px] text-ink-500 font-bold uppercase tracking-wider mb-8">
+                   <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> 2026 Season</div>
+                   <div className="w-1 h-1 rounded-full bg-ink-800" />
+                   <div>{new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                </div>
+
+                <div className="relative mt-auto grid grid-cols-3 gap-4 border-t border-white/[.04] pt-6">
+                   <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">SQUAD</span>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.total_teams}T</span>
+                   </div>
+                   <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">OVERS</span>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.overs}O</span>
+                   </div>
+                   <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">GROUPS</span>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.pool_count}P</span>
+                   </div>
+                </div>
               </div>
             ))}
           </div>
         )}
       </main>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4 text-gray-800">New Tournament</h3>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleField}
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="e.g. Street Cup 2026"
-                />
+      {/* REIMAGINED STEP-BASED FORM (USED FOR CREATE & EDIT) */}
+      <Modal 
+        open={showModal} 
+        onClose={() => setShowModal(false)} 
+        title={isEditing ? `Modifying Protocol: ${form.name}` : (step === 1 ? "Phase 1: Brand & Identity" : "Phase 2: Combat Rules")} 
+        size="md"
+      >
+        <div className="mb-8">
+           <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black uppercase tracking-[.2em] text-neon-cyan">{isEditing ? "Editing Tournament Configuration" : "Configuration Progress"}</span>
+              {!isEditing && <span className="text-[10px] font-bold text-ink-500">{step}/2</span>}
+           </div>
+           <div className="h-1 bg-ink-900 rounded-full overflow-hidden flex gap-1">
+              <div className={`h-full transition-all duration-500 rounded-full ${step >= 1 ? 'flex-1 bg-neon-cyan shadow-glow-cyan' : 'flex-0 bg-transparent'}`} />
+              <div className={`h-full transition-all duration-500 rounded-full ${step >= 2 || isEditing ? 'flex-1 bg-neon-cyan shadow-glow-cyan' : 'flex-1 bg-ink-800'}`} />
+           </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {(step === 1 || isEditing) && (
+            <div className={`space-y-6 ${!isEditing ? 'animate-in fade-in slide-in-from-right-4 duration-300' : ''}`}>
+              <div className="space-y-3">
+                <label className="block text-[11px] uppercase tracking-[.25em] font-black text-ink-400">Event Identity</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Sparkles className="h-4 w-4 text-neon-cyan group-focus-within:text-white transition-colors" />
+                  </div>
+                  <input
+                    name="name"
+                    value={form.name}
+                    onChange={handleFormChange}
+                    required
+                    placeholder="Enter Tournament Name..."
+                    autoFocus
+                    className="w-full bg-ink-900 border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 placeholder:text-ink-700 transition-all font-bold"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Overs (1–20)</label>
-                  <input
-                    name="overs"
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={form.overs}
-                    onChange={handleField}
-                    required
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+
+              {isEditing && (
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                      <Clock className="w-3.5 h-3.5 text-neon-cyan" /> Match Duration
+                    </label>
+                    <select
+                      name="overs"
+                      value={form.overs}
+                      onChange={handleFormChange}
+                      className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                    >
+                      {[2, 4, 6, 8, 10, 12, 15, 20].map(o => (
+                        <option key={o} value={o} className="bg-ink-950">{o} Overs</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                      <Target className="w-3.5 h-3.5 text-neon-cyan" /> Squad Size
+                    </label>
+                    <select
+                      name="players_per_team"
+                      value={form.players_per_team}
+                      onChange={handleFormChange}
+                      className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                    >
+                      {[5, 6, 7, 8, 9, 10, 11].map(p => (
+                        <option key={p} value={p} className="bg-ink-950">{p} Players</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teams (even, ≥4)</label>
-                  <input
-                    name="total_teams"
-                    type="number"
-                    min={4}
-                    step={2}
-                    value={form.total_teams}
-                    onChange={handleField}
-                    required
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+              )}
+
+              {isEditing && (
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                      <Users className="h-3.5 w-3.5 text-neon-cyan" /> Team Capacity
+                    </label>
+                    <select
+                      name="total_teams"
+                      value={form.total_teams}
+                      onChange={handleFormChange}
+                      className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                    >
+                      {[4, 6, 8, 10, 12, 16, 24, 32].map(t => (
+                        <option key={t} value={t} className="bg-ink-950">{t} Total Teams</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                      <Layers className="h-3.5 w-3.5 text-neon-cyan" /> Group Structure
+                    </label>
+                    <select
+                      name="pool_count"
+                      value={form.pool_count}
+                      onChange={handleFormChange}
+                      className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                    >
+                      <option value={1} className="bg-ink-950">Round Robin (1 Pool)</option>
+                      <option value={2} className="bg-ink-950">2 Groups</option>
+                      <option value={4} className="bg-ink-950">4 Groups</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Players/Team (2–11)</label>
-                  <input
-                    name="players_per_team"
-                    type="number"
-                    min={2}
-                    max={11}
-                    value={form.players_per_team}
-                    onChange={handleField}
-                    required
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+              )}
+
+              {!isEditing && (
+                <div className="bg-neon-cyan/5 border border-neon-cyan/10 rounded-2xl p-5 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-neon-cyan/10 flex-shrink-0 flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-neon-cyan" />
+                  </div>
+                  <div>
+                      <h4 className="text-xs font-bold text-white mb-1">Auto-Generation Enabled</h4>
+                      <p className="text-[10px] text-ink-400 leading-relaxed">
+                        Our engine will automatically handle scheduling, group seeding, and real-time standings once you deploy.
+                      </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Pools</label>
-                  <select
-                    name="pool_count"
-                    value={form.pool_count}
-                    onChange={handleField}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              )}
+
+              {!isEditing ? (
+                <Button 
+                  type="button" 
+                  onClick={() => form.name ? setStep(2) : toast.error('Please name your event')}
+                  className="w-full h-14 rounded-2xl bg-white text-ink-950 hover:bg-ink-100 font-black uppercase tracking-[.2em] text-xs transition-transform active:scale-95"
+                >
+                  Next Step: Define Rules <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                <div className="flex gap-4 pt-4 border-t border-white/5">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setShowModal(false)} 
+                    className="flex-1 h-12 rounded-2xl border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-widest transition-all"
                   >
-                    <option value={1}>1</option>
-                    <option value={2}>2</option>
-                    <option value={4}>4</option>
+                    Abort
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    loading={submitting} 
+                    className="flex-[2] h-12 rounded-2xl bg-neon-cyan text-ink-950 hover:bg-cyan-400 shadow-glow-cyan text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                  >
+                    Apply Modifications
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 2 && !isEditing && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                    <Clock className="w-3.5 h-3.5 text-neon-cyan" /> Match Duration
+                  </label>
+                  <select
+                    name="overs"
+                    value={form.overs}
+                    onChange={handleFormChange}
+                    className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                  >
+                    {[2, 4, 6, 8, 10, 12, 15, 20].map(o => (
+                      <option key={o} value={o} className="bg-ink-950">{o} Overs</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                    <Target className="w-3.5 h-3.5 text-neon-cyan" /> Squad Size
+                  </label>
+                  <select
+                    name="players_per_team"
+                    value={form.players_per_team}
+                    onChange={handleFormChange}
+                    className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                  >
+                    {[5, 6, 7, 8, 9, 10, 11].map(p => (
+                      <option key={p} value={p} className="bg-ink-950">{p} Players</option>
+                    ))}
                   </select>
                 </div>
               </div>
-              {formError && <p className="text-sm text-red-600">{formError}</p>}
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                >
-                  {creating ? "Creating…" : "Create"}
-                </button>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                    <Users className="h-3.5 w-3.5 text-neon-cyan" /> Team Capacity
+                  </label>
+                  <select
+                    name="total_teams"
+                    value={form.total_teams}
+                    onChange={handleFormChange}
+                    className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                  >
+                    {[4, 6, 8, 10, 12, 16, 24, 32].map(t => (
+                      <option key={t} value={t} className="bg-ink-950">{t} Total Teams</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
+                    <Layers className="h-3.5 w-3.5 text-neon-cyan" /> Group Structure
+                  </label>
+                  <select
+                    name="pool_count"
+                    value={form.pool_count}
+                    onChange={handleFormChange}
+                    className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
+                  >
+                    <option value={1} className="bg-ink-950">Round Robin (1 Pool)</option>
+                    <option value={2} className="bg-ink-950">2 Groups</option>
+                    <option value={4} className="bg-ink-950">4 Groups</option>
+                  </select>
+                </div>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+              <div className="flex gap-4 pt-4 border-t border-white/5">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setStep(1)} 
+                  className="flex-1 h-12 rounded-2xl border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  Back
+                </Button>
+                <Button 
+                  type="submit" 
+                  loading={submitting} 
+                  className="flex-[2] h-12 rounded-2xl bg-neon-cyan text-ink-950 hover:bg-cyan-400 shadow-glow-cyan text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Finalize & Deploy
+                </Button>
+              </div>
+            </div>
+          )}
+        </form>
+      </Modal>
     </div>
-  );
+  )
 }

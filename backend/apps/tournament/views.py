@@ -2,7 +2,10 @@ import random
 import string
 from collections import defaultdict
 
+from django.db import transaction
 from rest_framework import generics, status, views
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from .models import Pool, Tournament
@@ -11,11 +14,14 @@ from .serializers import PoolSerializer, TournamentSerializer
 
 class TournamentListCreateView(generics.ListCreateAPIView):
     serializer_class = TournamentSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        return Tournament.objects.filter(
-            created_by=self.request.user, is_deleted=False
-        )
+        if self.request.user.is_authenticated:
+            return Tournament.objects.filter(
+                created_by=self.request.user, is_deleted=False
+            )
+        return Tournament.objects.filter(is_deleted=False)
 
     def perform_create(self, serializer):
         tournament = serializer.save(created_by=self.request.user)
@@ -34,17 +40,52 @@ class TournamentDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Tournament.objects.filter(
             created_by=self.request.user, is_deleted=False
         )
-
-    def perform_update(self, serializer):
+@transaction.atomic
+def perform_update(self, serializer):
+    try:
         instance = self.get_object()
-        if instance.status != Tournament.Status.SETUP:
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError("Cannot edit tournament after setup phase.")
-        serializer.save()
+        if instance.status in (Tournament.Status.KNOCKOUTS, Tournament.Status.COMPLETED):
+            raise ValidationError("Cannot edit tournament after pool stage.")
+
+        old_count = instance.pool_count
+        old_overs = instance.overs
+        old_teams = instance.total_teams
+
+        tournament = serializer.save()
+        new_count = tournament.pool_count
+
+        # Trigger Re-initialization if critical logic changed
+        if old_count != new_count or old_overs != tournament.overs or old_teams != tournament.total_teams:
+            # 1. Reset to Setup
+            tournament.status = Tournament.Status.SETUP
+            tournament.save(update_fields=["status"])
+
+            # 2. Wipe Matches
+            from apps.matches.models import Match
+            Match.objects.filter(tournament=tournament).delete()
+
+            # 3. Sync Pools
+            existing_pools = list(tournament.pools.all().order_by("name"))
+            if new_count > old_count:
+                for i in range(old_count, new_count):
+                    Pool.objects.create(
+                        name=f"Pool {string.ascii_uppercase[i]}",
+                        tournament=tournament,
+                    )
+            elif new_count < old_count:
+                pools_to_remove = existing_pools[new_count:]
+                for p in pools_to_remove:
+                    p.teams.update(pool=None)
+                    p.delete()
+    except Exception as e:
+        print(f"Update Error: {str(e)}")
+        raise ValidationError(str(e))
+
 
 
 class PoolListView(generics.ListAPIView):
     serializer_class = PoolSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
         return Pool.objects.filter(tournament_id=self.kwargs["tournament_id"])
@@ -74,11 +115,13 @@ class PoolRandomizeView(views.APIView):
 class StandingsView(views.APIView):
     """Return pool standings for a tournament."""
 
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request, tournament_id):
         from apps.matches.models import Match
 
         tournament = Tournament.objects.get(
-            id=tournament_id, created_by=request.user, is_deleted=False
+            id=tournament_id, is_deleted=False
         )
         pools = list(tournament.pools.prefetch_related("teams").all())
         completed_statuses = {Match.Status.COMPLETED, Match.Status.FORFEITED}
@@ -182,3 +225,22 @@ class StandingsView(views.APIView):
             result.append({"pool": {"id": str(pool.id), "name": pool.name}, "standings": rows})
 
         return Response(result)
+
+
+class MOTCalculationView(views.APIView):
+    """Calculate and save Man of the Tournament."""
+
+    def post(self, request, tournament_id):
+        tournament = Tournament.objects.get(
+            id=tournament_id, created_by=request.user, is_deleted=False
+        )
+        from apps.scoring.awards import finalize_mot
+        from apps.teams.models import Player
+        from apps.teams.serializers import PlayerSerializer
+        
+        player_id = finalize_mot(tournament)
+        if not player_id:
+            return Response({"player": None})
+            
+        player = Player.objects.get(id=player_id)
+        return Response({"player": PlayerSerializer(player).data})

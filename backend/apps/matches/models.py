@@ -109,3 +109,22 @@ class Innings(models.Model):
 
     def __str__(self):
         return f"{self.match} – Innings {self.innings_number}"
+
+
+class SuperOver(models.Model):
+    """A tie-breaker super over for a knockout match."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name="super_overs")
+    round = models.PositiveIntegerField(default=1)
+    team1_runs = models.PositiveIntegerField(default=0)
+    team2_runs = models.PositiveIntegerField(default=0)
+    winner = models.ForeignKey("teams.Team", on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "super_overs"
+        unique_together = ("match", "round")
+        ordering = ["round"]
+
+    def __str__(self):
+        return f"Super Over {self.round} – Match {self.match.match_number}"

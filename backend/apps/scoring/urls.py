@@ -14,6 +14,11 @@ urlpatterns = [
         name="undo-ball",
     ),
     path(
+        "matches/<uuid:match_id>/revert-ball/",
+        views.RevertBallView.as_view(),
+        name="revert-ball",
+    ),
+    path(
         "matches/<uuid:match_id>/start-innings/",
         views.StartInningsView.as_view(),
         name="start-innings",

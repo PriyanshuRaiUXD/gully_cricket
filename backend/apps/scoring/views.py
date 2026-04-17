@@ -1,10 +1,11 @@
 from rest_framework import status, views
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from apps.matches.models import Innings, Match
 from apps.matches.serializers import InningsSerializer
 
-from .engine import record_ball, undo_last_ball
+from .engine import record_ball, undo_last_ball, recalculate_innings_totals
 from .models import Ball
 from .serializers import BallInputSerializer, BallSerializer
 
@@ -44,6 +45,43 @@ class RecordBallView(views.APIView):
             "innings": InningsSerializer(active_innings).data,
             "state": state,
         }, status=status.HTTP_201_CREATED)
+
+
+class RevertBallView(views.APIView):
+    """Delete all balls recorded after a specific ball (Rewind)."""
+
+    def post(self, request, match_id):
+        match = Match.objects.get(id=match_id, tournament__created_by=request.user)
+        ball_id = request.data.get("ball_id")
+        
+        try:
+            target_ball = Ball.objects.get(id=ball_id, innings__match=match)
+        except Ball.DoesNotExist:
+            return Response({"error": "Ball not found."}, status=404)
+
+        # Delete all balls recorded after this one in the same innings
+        Ball.objects.filter(
+            innings=target_ball.innings,
+            timestamp__gt=target_ball.timestamp
+        ).delete()
+        
+        # Optionally delete the target ball itself if requested, 
+        # but usually "revert to this point" means this ball is the LAST one.
+        # So we keep the target_ball and delete everything AFTER.
+
+        recalculate_innings_totals(target_ball.innings)
+        
+        # Reset match status if it was completed
+        if match.status in (Match.Status.COMPLETED, Match.Status.INNINGS_BREAK):
+            match.status = Match.Status.IN_PROGRESS
+            match.winner = None
+            match.result_summary = ""
+            match.save(update_fields=["status", "winner", "result_summary"])
+
+        return Response({
+            "message": "Match successfully rewound.",
+            "innings": InningsSerializer(target_ball.innings).data,
+        })
 
 
 class UndoBallView(views.APIView):
@@ -110,8 +148,14 @@ class StartInningsView(views.APIView):
 class ScorecardView(views.APIView):
     """Full scorecard for a match."""
 
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request, match_id):
-        match = Match.objects.get(id=match_id, tournament__created_by=request.user)
+        from apps.matches.models import Match
+        from apps.matches.serializers import MatchSerializer, InningsSerializer
+        from .serializers import BallSerializer
+        
+        match = Match.objects.get(id=match_id)
         innings_list = []
 
         for inn in match.innings.all():
@@ -123,7 +167,6 @@ class ScorecardView(views.APIView):
                 "balls": BallSerializer(balls, many=True).data,
             })
 
-        from apps.matches.serializers import MatchSerializer
         return Response({
             "match": MatchSerializer(match).data,
             "innings": innings_list,

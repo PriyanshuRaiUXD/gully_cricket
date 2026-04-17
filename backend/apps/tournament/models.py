@@ -31,6 +31,13 @@ class Tournament(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    mot_player = models.ForeignKey(
+        "teams.Player",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mot_awards",
+    )
 
     class Meta:
         db_table = "tournaments"

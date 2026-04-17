@@ -6,6 +6,7 @@ db.sqlite3
 staticfiles/
 .env
 *.log
+venv/
 
 # Node
 node_modules/

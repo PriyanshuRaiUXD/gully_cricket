@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Innings, Match
+from .models import Innings, Match, SuperOver
 
 
 class InningsSerializer(serializers.ModelSerializer):
@@ -13,15 +13,23 @@ class InningsSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class SuperOverSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SuperOver
+        fields = ("id", "match", "round", "team1_runs", "team2_runs", "winner", "created_at")
+        read_only_fields = fields
+
+
 class MatchSerializer(serializers.ModelSerializer):
     innings = InningsSerializer(many=True, read_only=True)
+    super_overs = SuperOverSerializer(many=True, read_only=True)
 
     class Meta:
         model = Match
         fields = (
             "id", "tournament", "team1", "team2", "pool", "stage",
             "match_number", "status", "toss_winner", "toss_decision",
-            "winner", "mom_player", "result_summary", "innings",
+            "winner", "mom_player", "result_summary", "innings", "super_overs",
             "created_at", "updated_at",
         )
         read_only_fields = (
@@ -33,3 +41,4 @@ class MatchSerializer(serializers.ModelSerializer):
 class TossSerializer(serializers.Serializer):
     toss_winner_id = serializers.UUIDField()
     decision = serializers.ChoiceField(choices=Match.TossDecision.choices)
+
