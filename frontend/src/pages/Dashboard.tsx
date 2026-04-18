@@ -9,8 +9,8 @@ import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/Spinner'
 import { 
   Trophy, Plus, Users, Clock, CheckCircle2, Activity, 
-  PlayCircle, BarChart3, Calendar, Shield, ArrowRight, 
-  Filter, Sparkles, Zap, Target, Layers, Settings2, Edit3
+  PlayCircle, Calendar, Shield, ArrowRight, 
+  Filter, Sparkles, Zap, Target, Layers, Edit3
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -57,8 +57,8 @@ export default function Dashboard() {
 
   function openEdit(e: React.MouseEvent, t: Tournament) {
     e.stopPropagation()
-    if (t.status === 'COMPLETED' || t.status === 'KNOCKOUTS') {
-      toast.error('Only active tournaments can be modified.')
+    if (t.status === 'COMPLETED') {
+      toast.error('Completed tournaments cannot be modified.')
       return
     }
     setIsEditing(true)
@@ -80,34 +80,16 @@ export default function Dashboard() {
     try {
       if (isEditing && editingId) {
         await api.patch(`/tournaments/${editingId}/`, form)
-        toast.success('Protocol updated successfully')
+        toast.success('Tournament updated successfully')
         fetchTournaments()
       } else {
         const res = await api.post('/tournaments/', form)
-        toast.success(`"${res.data.name}" successfully deployed!`)
+        toast.success(`"${res.data.name}" created!`)
         navigate(`/tournaments/${res.data.id}`)
       }
       setShowModal(false)
     } catch (err: any) {
-      console.error('CRITICAL DEPLOYMENT FAILURE:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        config: err.config
-      })
-      const errorData = err.response?.data
-      if (errorData && typeof errorData === 'object') {
-        const messages = Object.entries(errorData)
-          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-          .join('\n')
-        toast.error(messages || 'Validation failed')
-      } else if (err.response?.status === 500) {
-        toast.error('Server Crash (500). Please check backend logs.')
-      } else if (err.message === 'Network Error') {
-        toast.error('Network Error: Is the backend running?')
-      } else {
-        toast.error(`Operation Failed: ${err.message || 'Unknown error'}`)
-      }
+      toast.error('Operation failed')
     } finally {
       setSubmitting(false)
     }
@@ -133,16 +115,15 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-ink-950 text-white selection:bg-neon-cyan/30 flex flex-col relative overflow-hidden">
       <Navbar
-        breadcrumbs={[{ label: 'Control Center' }]}
+        breadcrumbs={[{ label: 'Dashboard' }]}
         actions={
           <Button size="sm" onClick={openCreate} className="gap-1.5 shadow-glow-cyan bg-neon-cyan text-ink-950 hover:bg-cyan-400">
-            <Plus className="w-4 h-4" /> New Event
+            <Plus className="w-4 h-4" /> New Tournament
           </Button>
         }
       />
 
       <div className="absolute top-0 inset-x-0 h-[50vh] bg-gradient-to-b from-neon-cyan/5 to-transparent pointer-events-none" />
-      <div className="absolute inset-0 mesh-hero opacity-20 pointer-events-none mix-blend-screen" />
       
       <main className="relative flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 z-10">
         
@@ -151,13 +132,13 @@ export default function Dashboard() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] text-neon-cyan font-bold uppercase tracking-widest mb-4">
               <Shield className="w-3.5 h-3.5" />
-              Verified Organizer Environment
+              Tournament Organizer
             </div>
             <h1 className="text-4xl md:text-5xl font-black font-display tracking-tight text-white mb-3">
-              Event <span className="text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-white to-neon-violet">Operations</span>
+              Tournament <span className="text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-white to-neon-violet">Management</span>
             </h1>
             <p className="text-ink-400 max-w-xl text-sm md:text-base leading-relaxed font-medium">
-              Your command hub for high-stakes cricket. Orchestrate tournaments, automate standings, and broadcast live scores to your audience.
+              Manage your local cricket tournaments. Register teams, generate matches, and broadcast live scores to everyone.
             </p>
           </div>
           
@@ -165,11 +146,11 @@ export default function Dashboard() {
              <div className="glass group p-1 rounded-2xl border border-neon-cyan/20 bg-neon-cyan/5 shadow-glow-cyan/5 hidden lg:block max-w-xs animate-float">
                 <div className="px-5 py-4 flex flex-col gap-2">
                    <div className="text-[10px] uppercase font-bold text-neon-cyan tracking-[.2em] flex items-center gap-1.5">
-                     <Activity className="w-3 h-3 animate-pulse" /> Mission Active
+                     <Activity className="w-3 h-3 animate-pulse" /> Active Tournament
                    </div>
                    <div className="font-display font-bold text-white truncate text-sm">{recentTournament.name}</div>
                    <Button size="sm" onClick={() => navigate(`/tournaments/${recentTournament.id}`)} variant="outline" className="w-full text-[11px] h-8 mt-2 gap-1.5 bg-white/5 border-white/10 hover:border-neon-cyan/50 hover:bg-neon-cyan/10 text-white transition-all">
-                     Continue Directing <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                     View Progress <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                    </Button>
                 </div>
              </div>
@@ -179,10 +160,10 @@ export default function Dashboard() {
         {/* Analytics Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
           {[
-            { label: 'Managed Events', value: tournaments.length, icon: <Trophy className="w-5 h-5 text-ink-400" />, color: 'from-white/5 to-white/0', border: 'hover:border-white/20' },
-            { label: 'Active Now', value: active, icon: <Activity className="w-5 h-5 text-neon-cyan" />, color: 'from-neon-cyan/10 to-transparent', border: 'hover:border-neon-cyan/30' },
-            { label: 'Enrolled Teams', value: totalTeams, icon: <Users className="w-5 h-5 text-neon-violet" />, color: 'from-neon-violet/10 to-transparent', border: 'hover:border-neon-violet/30' },
-            { label: 'Finalized', value: completed, icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />, color: 'from-emerald-500/10 to-transparent', border: 'hover:border-emerald-500/30' },
+            { label: 'Total Events', value: tournaments.length, icon: <Trophy className="w-5 h-5 text-ink-400" />, color: 'from-white/5 to-white/0', border: 'hover:border-white/20' },
+            { label: 'Live Now', value: active, icon: <Activity className="w-5 h-5 text-neon-cyan" />, color: 'from-neon-cyan/10 to-transparent', border: 'hover:border-neon-cyan/30' },
+            { label: 'Registered Teams', value: totalTeams, icon: <Users className="w-5 h-5 text-neon-violet" />, color: 'from-neon-violet/10 to-transparent', border: 'hover:border-neon-violet/30' },
+            { label: 'Finished', value: completed, icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />, color: 'from-emerald-500/10 to-transparent', border: 'hover:border-emerald-500/30' },
           ].map((s) => (
             <div key={s.label} className={`relative glass rounded-2xl p-5 md:p-6 border border-white/[.04] shadow-panel overflow-hidden group transition-all duration-300 bg-gradient-to-br ${s.color} ${s.border}`}>
               <div className="flex justify-between items-start mb-4">
@@ -218,7 +199,7 @@ export default function Dashboard() {
            
            <div className="text-[11px] font-medium text-ink-500 flex items-center gap-2">
              <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
-             Synchronized with live database
+             Live Sync Enabled
            </div>
         </div>
 
@@ -230,19 +211,19 @@ export default function Dashboard() {
               <div className="inline-flex w-24 h-24 rounded-3xl bg-gradient-to-br from-neon-cyan/20 to-neon-violet/20 items-center justify-center border border-white/10 mb-10 shadow-glow-cyan/20 rotate-3">
                 <Trophy className="w-12 h-12 text-neon-cyan" strokeWidth={1.2} />
               </div>
-              <h3 className="text-3xl font-display font-black text-white tracking-tight mb-4">No Operations Running</h3>
+              <h3 className="text-3xl font-display font-black text-white tracking-tight mb-4">No Tournaments Yet</h3>
               <p className="text-ink-400 text-sm md:text-base mb-10 leading-relaxed font-medium">
-                Your command center is idle. Deploy your first tournament to start managing teams, matches, and real-time statistics.
+                Ready to organize? Create your first tournament to start managing teams and matches.
               </p>
               <Button onClick={openCreate} size="lg" className="w-full sm:w-auto px-10 h-14 rounded-2xl bg-neon-cyan text-ink-950 hover:bg-cyan-400 shadow-glow-cyan font-black uppercase tracking-widest text-xs">
-                <Zap className="w-5 h-5 mr-2 fill-current" /> Deploy First Event
+                <Zap className="w-5 h-5 mr-2 fill-current" /> Create Tournament
               </Button>
             </div>
           </div>
         ) : filteredTournaments.length === 0 ? (
            <div className="py-24 text-center glass rounded-3xl border border-white/5 border-dashed">
               <Filter className="w-12 h-12 text-ink-700 mx-auto mb-4" />
-              <p className="text-ink-500 font-bold uppercase tracking-widest text-xs">No records found for this filter</p>
+              <p className="text-ink-500 font-bold uppercase tracking-widest text-xs">No tournaments found</p>
            </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -260,7 +241,7 @@ export default function Dashboard() {
                     <div 
                       onClick={(e) => openEdit(e, t)}
                       className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-neon-cyan hover:text-ink-950 hover:border-neon-cyan transition-all cursor-pointer shadow-lg z-30"
-                      title="Edit Protocol"
+                      title="Edit Tournament"
                     >
                         <Edit3 className="w-5 h-5" />
                     </div>
@@ -270,7 +251,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <h3 className="relative font-display font-black text-xl text-white group-hover:text-neon-cyan transition-colors leading-tight line-clamp-2 mb-3">
+                <h3 className="relative font-display font-black text-xl text-white group-hover:text-neon-cyan transition-colors leading-tight line-clamp-2 mb-3 uppercase">
                   {t.name}
                 </h3>
                 
@@ -282,16 +263,16 @@ export default function Dashboard() {
 
                 <div className="relative mt-auto grid grid-cols-3 gap-4 border-t border-white/[.04] pt-6">
                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">SQUAD</span>
-                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.total_teams}T</span>
+                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">TEAMS</span>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.total_teams}</span>
                    </div>
                    <div className="flex flex-col gap-1.5">
                       <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">OVERS</span>
-                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.overs}O</span>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.overs}</span>
                    </div>
                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">GROUPS</span>
-                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.pool_count}P</span>
+                      <span className="text-[9px] uppercase font-bold text-ink-600 tracking-[.15em]">POOLS</span>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-neon-cyan/60" /> {t.pool_count}</span>
                    </div>
                 </div>
               </div>
@@ -300,16 +281,16 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* REIMAGINED STEP-BASED FORM (USED FOR CREATE & EDIT) */}
+      {/* STEP-BASED FORM */}
       <Modal 
         open={showModal} 
         onClose={() => setShowModal(false)} 
-        title={isEditing ? `Modifying Protocol: ${form.name}` : (step === 1 ? "Phase 1: Brand & Identity" : "Phase 2: Combat Rules")} 
+        title={isEditing ? `Edit Tournament: ${form.name}` : (step === 1 ? "New Tournament" : "Match Rules")} 
         size="md"
       >
         <div className="mb-8">
            <div className="flex justify-between items-center mb-2">
-              <span className="text-[10px] font-black uppercase tracking-[.2em] text-neon-cyan">{isEditing ? "Editing Tournament Configuration" : "Configuration Progress"}</span>
+              <span className="text-[10px] font-black uppercase tracking-[.2em] text-neon-cyan">{isEditing ? "Modify Configuration" : "Tournament Setup"}</span>
               {!isEditing && <span className="text-[10px] font-bold text-ink-500">{step}/2</span>}
            </div>
            <div className="h-1 bg-ink-900 rounded-full overflow-hidden flex gap-1">
@@ -322,7 +303,7 @@ export default function Dashboard() {
           {(step === 1 || isEditing) && (
             <div className={`space-y-6 ${!isEditing ? 'animate-in fade-in slide-in-from-right-4 duration-300' : ''}`}>
               <div className="space-y-3">
-                <label className="block text-[11px] uppercase tracking-[.25em] font-black text-ink-400">Event Identity</label>
+                <label className="block text-[11px] uppercase tracking-[.25em] font-black text-ink-400 ml-1">Tournament Name</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <Sparkles className="h-4 w-4 text-neon-cyan group-focus-within:text-white transition-colors" />
@@ -332,18 +313,18 @@ export default function Dashboard() {
                     value={form.name}
                     onChange={handleFormChange}
                     required
-                    placeholder="Enter Tournament Name..."
+                    placeholder="e.g. Winter Premier League"
                     autoFocus
-                    className="w-full bg-ink-900 border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 placeholder:text-ink-700 transition-all font-bold"
+                    className="w-full bg-ink-900 border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 placeholder:text-ink-700 transition-all font-bold uppercase"
                   />
                 </div>
               </div>
 
               {isEditing && (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-6 text-left">
                   <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                      <Clock className="w-3.5 h-3.5 text-neon-cyan" /> Match Duration
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                      <Clock className="w-3.5 h-3.5 text-neon-cyan" /> Match Overs
                     </label>
                     <select
                       name="overs"
@@ -358,8 +339,8 @@ export default function Dashboard() {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                      <Target className="w-3.5 h-3.5 text-neon-cyan" /> Squad Size
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                      <Target className="w-3.5 h-3.5 text-neon-cyan" /> Players Per Team
                     </label>
                     <select
                       name="players_per_team"
@@ -376,10 +357,10 @@ export default function Dashboard() {
               )}
 
               {isEditing && (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-6 text-left">
                   <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                      <Users className="h-3.5 w-3.5 text-neon-cyan" /> Team Capacity
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                      <Users className="h-3.5 w-3.5 text-neon-cyan" /> Total Teams
                     </label>
                     <select
                       name="total_teams"
@@ -388,14 +369,14 @@ export default function Dashboard() {
                       className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
                     >
                       {[4, 6, 8, 10, 12, 16, 24, 32].map(t => (
-                        <option key={t} value={t} className="bg-ink-950">{t} Total Teams</option>
+                        <option key={t} value={t} className="bg-ink-950">{t} Teams</option>
                       ))}
                     </select>
                   </div>
 
                   <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                      <Layers className="h-3.5 w-3.5 text-neon-cyan" /> Group Structure
+                    <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                      <Layers className="h-3.5 w-3.5 text-neon-cyan" /> Groups/Pools
                     </label>
                     <select
                       name="pool_count"
@@ -412,14 +393,14 @@ export default function Dashboard() {
               )}
 
               {!isEditing && (
-                <div className="bg-neon-cyan/5 border border-neon-cyan/10 rounded-2xl p-5 flex items-start gap-4">
+                <div className="bg-neon-cyan/5 border border-neon-cyan/10 rounded-2xl p-5 flex items-start gap-4 text-left">
                   <div className="w-10 h-10 rounded-xl bg-neon-cyan/10 flex-shrink-0 flex items-center justify-center">
                       <Zap className="w-5 h-5 text-neon-cyan" />
                   </div>
                   <div>
-                      <h4 className="text-xs font-bold text-white mb-1">Auto-Generation Enabled</h4>
-                      <p className="text-[10px] text-ink-400 leading-relaxed">
-                        Our engine will automatically handle scheduling, group seeding, and real-time standings once you deploy.
+                      <h4 className="text-xs font-bold text-white mb-1">Automatic Scheduling</h4>
+                      <p className="text-[10px] text-ink-400 leading-relaxed font-bold">
+                        The system will automatically generate all group stage matches and track standings live.
                       </p>
                   </div>
                 </div>
@@ -428,10 +409,10 @@ export default function Dashboard() {
               {!isEditing ? (
                 <Button 
                   type="button" 
-                  onClick={() => form.name ? setStep(2) : toast.error('Please name your event')}
+                  onClick={() => form.name ? setStep(2) : toast.error('Please name your tournament')}
                   className="w-full h-14 rounded-2xl bg-white text-ink-950 hover:bg-ink-100 font-black uppercase tracking-[.2em] text-xs transition-transform active:scale-95"
                 >
-                  Next Step: Define Rules <ArrowRight className="w-4 h-4 ml-2" />
+                  Match Rules <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
                 <div className="flex gap-4 pt-4 border-t border-white/5">
@@ -441,14 +422,14 @@ export default function Dashboard() {
                     onClick={() => setShowModal(false)} 
                     className="flex-1 h-12 rounded-2xl border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-widest transition-all"
                   >
-                    Abort
+                    Cancel
                   </Button>
                   <Button 
                     type="submit" 
                     loading={submitting} 
                     className="flex-[2] h-12 rounded-2xl bg-neon-cyan text-ink-950 hover:bg-cyan-400 shadow-glow-cyan text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
                   >
-                    Apply Modifications
+                    Update Tournament
                   </Button>
                 </div>
               )}
@@ -456,11 +437,11 @@ export default function Dashboard() {
           )}
 
           {step === 2 && !isEditing && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300 text-left">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                    <Clock className="w-3.5 h-3.5 text-neon-cyan" /> Match Duration
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                    <Clock className="w-3.5 h-3.5 text-neon-cyan" /> Match Overs
                   </label>
                   <select
                     name="overs"
@@ -475,8 +456,8 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                    <Target className="w-3.5 h-3.5 text-neon-cyan" /> Squad Size
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                    <Target className="w-3.5 h-3.5 text-neon-cyan" /> Players Per Team
                   </label>
                   <select
                     name="players_per_team"
@@ -491,10 +472,10 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-6 text-left">
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                    <Users className="h-3.5 w-3.5 text-neon-cyan" /> Team Capacity
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                    <Users className="h-3.5 w-3.5 text-neon-cyan" /> Total Teams
                   </label>
                   <select
                     name="total_teams"
@@ -503,14 +484,14 @@ export default function Dashboard() {
                     className="w-full bg-ink-900 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:border-neon-cyan/50 transition-all font-bold appearance-none"
                   >
                     {[4, 6, 8, 10, 12, 16, 24, 32].map(t => (
-                      <option key={t} value={t} className="bg-ink-950">{t} Total Teams</option>
+                      <option key={t} value={t} className="bg-ink-950">{t} Teams</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400">
-                    <Layers className="h-3.5 w-3.5 text-neon-cyan" /> Group Structure
+                  <label className="flex items-center gap-2 text-[10px] uppercase tracking-[.15em] font-black text-ink-400 ml-1">
+                    <Layers className="h-3.5 w-3.5 text-neon-cyan" /> Groups/Pools
                   </label>
                   <select
                     name="pool_count"
@@ -539,7 +520,7 @@ export default function Dashboard() {
                   loading={submitting} 
                   className="flex-[2] h-12 rounded-2xl bg-neon-cyan text-ink-950 hover:bg-cyan-400 shadow-glow-cyan text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
                 >
-                  Finalize & Deploy
+                  Create Tournament
                 </Button>
               </div>
             </div>

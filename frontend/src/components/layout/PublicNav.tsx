@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { Radio, Trophy } from "lucide-material";
 import { Radio as RadioIcon, Trophy as TrophyIcon } from "lucide-react";
 
 interface PublicNavProps {
@@ -47,13 +46,19 @@ export function PublicNav({ liveCount = 0 }: PublicNavProps) {
         )}
 
         {/* Right side */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <Link
             to="/login"
-            className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white hover:text-neon-cyan transition px-2 py-1"
+            className="flex items-center gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-white hover:text-neon-cyan transition px-2 py-1"
           >
             <RadioIcon className="w-3.5 h-3.5" />
-            Organizer Login
+            Login
+          </Link>
+          <Link
+            to="/register"
+            className="hidden md:flex items-center gap-2 bg-white text-ink-950 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neon-cyan transition"
+          >
+            Sign Up
           </Link>
         </div>
       </div>

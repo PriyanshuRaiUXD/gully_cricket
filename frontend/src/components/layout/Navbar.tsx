@@ -35,7 +35,7 @@ export function Navbar({ breadcrumbs = [], actions }: NavbarProps) {
                 Gully Cricket
               </p>
               <p className="text-[10px] text-ink-500 uppercase tracking-[.18em] mt-1">
-                Organizer
+                Admin Panel
               </p>
             </div>
           </Link>

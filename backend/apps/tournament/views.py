@@ -40,46 +40,52 @@ class TournamentDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Tournament.objects.filter(
             created_by=self.request.user, is_deleted=False
         )
-@transaction.atomic
-def perform_update(self, serializer):
-    try:
-        instance = self.get_object()
-        if instance.status in (Tournament.Status.KNOCKOUTS, Tournament.Status.COMPLETED):
-            raise ValidationError("Cannot edit tournament after pool stage.")
 
-        old_count = instance.pool_count
-        old_overs = instance.overs
-        old_teams = instance.total_teams
+    @transaction.atomic
+    def perform_update(self, serializer):
+        try:
+            instance = self.get_object()
+            if instance.status == Tournament.Status.COMPLETED:
+                raise ValidationError("Cannot edit a completed tournament.")
 
-        tournament = serializer.save()
-        new_count = tournament.pool_count
+            old_count = instance.pool_count
+            old_overs = instance.overs
+            old_teams = instance.total_teams
+            old_players = instance.players_per_team
 
-        # Trigger Re-initialization if critical logic changed
-        if old_count != new_count or old_overs != tournament.overs or old_teams != tournament.total_teams:
-            # 1. Reset to Setup
-            tournament.status = Tournament.Status.SETUP
-            tournament.save(update_fields=["status"])
+            tournament = serializer.save()
+            new_count = tournament.pool_count
 
-            # 2. Wipe Matches
-            from apps.matches.models import Match
-            Match.objects.filter(tournament=tournament).delete()
+            # Trigger Re-initialization if critical logic changed
+            if (old_count != new_count or 
+                old_overs != tournament.overs or 
+                old_teams != tournament.total_teams or 
+                old_players != tournament.players_per_team):
+                
+                # 1. Reset to Setup
+                tournament.status = Tournament.Status.SETUP
+                tournament.save(update_fields=["status"])
 
-            # 3. Sync Pools
-            existing_pools = list(tournament.pools.all().order_by("name"))
-            if new_count > old_count:
-                for i in range(old_count, new_count):
-                    Pool.objects.create(
-                        name=f"Pool {string.ascii_uppercase[i]}",
-                        tournament=tournament,
-                    )
-            elif new_count < old_count:
-                pools_to_remove = existing_pools[new_count:]
-                for p in pools_to_remove:
-                    p.teams.update(pool=None)
-                    p.delete()
-    except Exception as e:
-        print(f"Update Error: {str(e)}")
-        raise ValidationError(str(e))
+                # 2. Wipe Matches
+                from apps.matches.models import Match
+                Match.objects.filter(tournament=tournament).delete()
+
+                # 3. Sync Pools
+                existing_pools = list(tournament.pools.all().order_by("name"))
+                if new_count > old_count:
+                    for i in range(old_count, new_count):
+                        Pool.objects.create(
+                            name=f"Pool {string.ascii_uppercase[i]}",
+                            tournament=tournament,
+                        )
+                elif new_count < old_count:
+                    pools_to_remove = existing_pools[new_count:]
+                    for p in pools_to_remove:
+                        p.teams.update(pool=None)
+                        p.delete()
+        except Exception as e:
+            print(f"Update Error: {str(e)}")
+            raise ValidationError(str(e))
 
 
 

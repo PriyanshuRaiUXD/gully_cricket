@@ -258,18 +258,26 @@ function LandingHero() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-rise [animation-delay:300ms]">
           <Link
             to="/register"
-            className="group relative inline-flex items-center gap-4 bg-white text-ink-950 font-display font-black px-12 py-6 rounded-2xl hover:bg-neon-cyan transition-all duration-500 transform hover:-translate-y-2 shadow-glow-white hover:shadow-glow-cyan text-lg"
+            className="group relative inline-flex items-center gap-4 bg-white text-ink-950 font-display font-black px-10 py-5 rounded-2xl hover:bg-neon-cyan transition-all duration-500 transform hover:-translate-y-2 shadow-glow-white hover:shadow-glow-cyan text-base"
           >
-            <Trophy className="w-6 h-6" />
+            <Trophy className="w-5 h-5" />
             ORGANIZE TOURNAMENT
-            <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
           </Link>
           
+          <Link
+            to="/register"
+            className="inline-flex items-center gap-4 px-10 py-5 rounded-2xl bg-white/5 border border-white/10 text-white font-display font-bold hover:bg-white/10 transition-all text-base group"
+          >
+            <UserPlus className="w-5 h-5 text-neon-violet group-hover:scale-110 transition-transform" />
+            SIGN UP
+          </Link>
+
           <button
             onClick={() => document.getElementById('live-section')?.scrollIntoView({ behavior: 'smooth' })}
-            className="inline-flex items-center gap-4 px-12 py-6 rounded-2xl bg-white/5 border border-white/10 text-white font-display font-bold hover:bg-white/10 transition-all text-lg group"
+            className="inline-flex items-center gap-4 px-10 py-5 rounded-2xl bg-transparent text-ink-400 font-display font-bold hover:text-white transition-all text-base group"
           >
-            <Play className="w-6 h-6 text-neon-cyan group-hover:scale-110 transition-transform" />
+            <Play className="w-5 h-5 text-neon-cyan group-hover:scale-110 transition-transform" />
             WATCH LIVE
           </button>
         </div>
@@ -322,7 +330,7 @@ function FeaturesGrid() {
                   From variable overs to manual score overrides, we've got you covered.
                 </p>
                 <div className="pt-8">
-                   <Link to="/register" className="inline-flex items-center gap-3 text-white font-black border-b-2 border-neon-cyan pb-2 hover:text-neon-cyan transition text-lg">
+                   <Link to="/login" className="inline-flex items-center gap-3 text-white font-black border-b-2 border-neon-cyan pb-2 hover:text-neon-cyan transition text-lg">
                       Explore the organizer dashboard <ArrowRight className="w-5 h-5" />
                    </Link>
                 </div>
